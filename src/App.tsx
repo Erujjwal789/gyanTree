@@ -15,6 +15,8 @@ import { DonorDashboard } from "./pages/dashboard/DonorDashboard";
 import { ReceiverDashboard } from "./pages/dashboard/ReceiverDashboard";
 import { DonateBook } from "./pages/books/DonateBook";
 import { MyBooks } from "./pages/books/MyBooks";
+import { BookRequests } from "./pages/books/BookRequests";
+import BrowseBooks from "./pages/books/BrowseBooks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +71,11 @@ const AppContent: React.FC = () => {
               <DashboardRoute />
             </ProtectedRoute>
           } />
+          <Route path="/browse-books" element={
+            <ProtectedRoute>
+              <BrowseBooks />
+            </ProtectedRoute>
+          } />
           <Route path="/donate-book" element={
             <ProtectedRoute>
               <DonateBook />
@@ -77,6 +84,11 @@ const AppContent: React.FC = () => {
           <Route path="/my-books" element={
             <ProtectedRoute>
               <MyBooks />
+            </ProtectedRoute>
+          } />
+          <Route path="/book-requests" element={
+            <ProtectedRoute>
+              <BookRequests />
             </ProtectedRoute>
           } />
           

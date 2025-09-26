@@ -26,16 +26,15 @@ export const Navbar: React.FC = () => {
 
   const donorLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: BookOpen },
-    { to: '/upload-book', label: 'Donate Book', icon: Upload },
+    { to: '/donate-book', label: 'Donate Book', icon: Upload },
     { to: '/my-books', label: 'My Books', icon: Heart },
     { to: '/book-requests', label: 'Requests', icon: Bell },
   ];
 
   const receiverLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: Search },
-    { to: '/books', label: 'Browse Books', icon: BookOpen },
-    { to: '/my-requests', label: 'My Requests', icon: Heart },
-    { to: '/notifications', label: 'Notifications', icon: Bell },
+    { to: '/browse-books', label: 'Browse Books', icon: BookOpen },
+    { to: '/book-requests', label: 'Requests', icon: Bell },
   ];
 
   const currentLinks = user?.role === 'donor' ? donorLinks : receiverLinks;

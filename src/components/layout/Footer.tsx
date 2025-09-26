@@ -81,15 +81,15 @@ export const Footer: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Mail className="w-4 h-4" />
-                <span>riyarawat@gmail.com</span>
+                <span>hello@gyantree.org</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Phone className="w-4 h-4" />
-                <span>+91 9329497885</span>
+                <span>+91 98765 43210</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin className="w-4 h-4" />
-                <span>Indore, India</span>
+                <span>Mumbai, India</span>
               </div>
             </div>
           </div>
@@ -98,7 +98,7 @@ export const Footer: React.FC = () => {
         <div className="mt-8 pt-8 border-t border-border">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 Gyan Tree. 
+              © 2024 Gyan Tree. Made with ❤️ for education.
             </p>
             <div className="flex items-center gap-6">
               <Link 

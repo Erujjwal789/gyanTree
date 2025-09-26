@@ -14,11 +14,13 @@ import { BookOpen, MapPin, Upload, Camera } from 'lucide-react';
 
 interface DonateBookForm {
   title: string;
+  author: string;
   subject: string;
   grade: string;
   condition: string;
   description: string;
   location: string;
+  pickupDelivery: string;
   photo?: FileList;
 }
 
@@ -31,11 +33,13 @@ export const DonateBook: React.FC = () => {
   const form = useForm<DonateBookForm>({
     defaultValues: {
       title: '',
+      author: '',
       subject: '',
       grade: '',
       condition: '',
       description: '',
       location: user?.location || '',
+      pickupDelivery: 'pickup',
     }
   });
 
@@ -56,11 +60,13 @@ export const DonateBook: React.FC = () => {
       const bookData = {
         user_id: user.id,
         title: data.title,
+        author: data.author || null,
         subject: data.subject,
         grade: data.grade,
         condition: data.condition,
         description: data.description || null,
         location: data.location,
+        pickup_delivery: data.pickupDelivery,
         photo_url: data.photo?.[0]?.name || null, // In real app, this would be uploaded to storage
         status: 'available'
       };
@@ -119,25 +125,46 @@ export const DonateBook: React.FC = () => {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                {/* Title */}
-                <FormField
-                  control={form.control}
-                  name="title"
-                  rules={{ required: 'Book title is required' }}
-                  render={({ field, fieldState }) => (
-                    <FormItem>
-                      <FormLabel>Book Title *</FormLabel>
-                      <FormControl>
-                        <InputField
-                          {...field}
-                          placeholder="Enter the book title"
-                          error={fieldState.error?.message}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Title */}
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    rules={{ required: 'Book title is required' }}
+                    render={({ field, fieldState }) => (
+                      <FormItem>
+                        <FormLabel>Book Title *</FormLabel>
+                        <FormControl>
+                          <InputField
+                            {...field}
+                            placeholder="Enter the book title"
+                            error={fieldState.error?.message}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Author */}
+                  <FormField
+                    control={form.control}
+                    name="author"
+                    render={({ field, fieldState }) => (
+                      <FormItem>
+                        <FormLabel>Author</FormLabel>
+                        <FormControl>
+                          <InputField
+                            {...field}
+                            placeholder="Enter the author name"
+                            error={fieldState.error?.message}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 {/* Subject */}
                 <FormField
@@ -236,26 +263,53 @@ export const DonateBook: React.FC = () => {
                   )}
                 />
 
-                {/* Location */}
-                <FormField
-                  control={form.control}
-                  name="location"
-                  rules={{ required: 'Location is required' }}
-                  render={({ field, fieldState }) => (
-                    <FormItem>
-                      <FormLabel>Location *</FormLabel>
-                      <FormControl>
-                        <InputField
-                          {...field}
-                          icon={<MapPin className="w-4 h-4" />}
-                          placeholder="Enter your city/location"
-                          error={fieldState.error?.message}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Location */}
+                  <FormField
+                    control={form.control}
+                    name="location"
+                    rules={{ required: 'Location is required' }}
+                    render={({ field, fieldState }) => (
+                      <FormItem>
+                        <FormLabel>Location *</FormLabel>
+                        <FormControl>
+                          <InputField
+                            {...field}
+                            icon={<MapPin className="w-4 h-4" />}
+                            placeholder="Enter your city/location"
+                            error={fieldState.error?.message}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Pickup/Delivery */}
+                  <FormField
+                    control={form.control}
+                    name="pickupDelivery"
+                    rules={{ required: 'Pickup/delivery option is required' }}
+                    render={({ field, fieldState }) => (
+                      <FormItem>
+                        <FormLabel>Pickup/Delivery *</FormLabel>
+                        <FormControl>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pickup">Pickup Only</SelectItem>
+                              <SelectItem value="delivery">Delivery Available</SelectItem>
+                              <SelectItem value="both">Both Pickup & Delivery</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 {/* Description */}
                 <FormField

@@ -14,8 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      book_requests: {
+        Row: {
+          author: string
+          category: string
+          created_at: string
+          id: string
+          reason: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author: string
+          category: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          category?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       books: {
         Row: {
+          author: string | null
           condition: string
           created_at: string | null
           description: string | null
@@ -23,6 +60,7 @@ export type Database = {
           id: string
           location: string
           photo_url: string | null
+          pickup_delivery: string | null
           status: string
           subject: string
           title: string
@@ -30,6 +68,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          author?: string | null
           condition: string
           created_at?: string | null
           description?: string | null
@@ -37,6 +76,7 @@ export type Database = {
           id?: string
           location: string
           photo_url?: string | null
+          pickup_delivery?: string | null
           status?: string
           subject: string
           title: string
@@ -44,6 +84,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          author?: string | null
           condition?: string
           created_at?: string | null
           description?: string | null
@@ -51,6 +92,7 @@ export type Database = {
           id?: string
           location?: string
           photo_url?: string | null
+          pickup_delivery?: string | null
           status?: string
           subject?: string
           title?: string
