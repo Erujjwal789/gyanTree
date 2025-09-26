@@ -89,7 +89,7 @@ export const Footer: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <MapPin className="w-4 h-4" />
-                <span>Mumbai, India</span>
+                <span>Indore, India</span>
               </div>
             </div>
           </div>
@@ -98,7 +98,7 @@ export const Footer: React.FC = () => {
         <div className="mt-8 pt-8 border-t border-border">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 Gyan Tree. 
+              © Gyan Tree.  Riya Rawat 
             </p>
             <div className="flex items-center gap-6">
               <Link 
