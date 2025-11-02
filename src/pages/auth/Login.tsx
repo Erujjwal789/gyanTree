@@ -163,9 +163,9 @@ export const Login: React.FC = () => {
               Demo Credentials
             </p>
             <div className="text-xs text-muted-foreground space-y-2 bg-background/50 p-4 rounded-xl">
-              <p className="font-medium">📚 Donor: donor@gyantree.org</p>
-              <p className="font-medium">🎓 Receiver: receiver@gyantree.org</p>
-              <p className="text-primary font-semibold mt-2">Password: password123</p>
+              <p className="font-medium"> Donor: xyza@gmail.com</p>
+              <p className="font-medium"> Receiver: rev@gmail.com</p>
+              <p className="text-primary font-semibold mt-2">Password: 123456</p>
             </div>
           </div>
         </div>
