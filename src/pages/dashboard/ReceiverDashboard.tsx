@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { InputField } from '@/components/ui/input-field';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,123 +17,237 @@ import {
   CheckCircle,
   Star
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const ReceiverDashboard: React.FC = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [books, setBooks] = useState<Book[]>([]);
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    booksRequested: 0,
+    booksReceived: 0,
+    moneySaved: 0,
+    activeRequests: 0
+  });
+  const [filterSubject, setFilterSubject] = useState('');
+  const [filterGrade, setFilterGrade] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
-  // Mock data - in real app, this would come from API
-  const stats = [
-    {
-      title: 'Books Requested',
-      value: '8',
-      change: '+3 this month',
-      icon: BookOpen,
-      color: 'text-primary',
-    },
-    {
-      title: 'Books Received',
-      value: '5',
-      change: '+2 this month',
-      icon: CheckCircle,
-      color: 'text-success',
-    },
-    {
-      title: 'Money Saved',
-      value: '₹4,500',
-      change: '+₹1,200 this month',
-      icon: Star,
-      color: 'text-warning',
-    },
-    {
-      title: 'Active Requests',
-      value: '3',
-      change: '2 pending approval',
-      icon: Clock,
-      color: 'text-secondary-foreground',
-    },
-  ];
+  useEffect(() => {
+    if (user) {
+      fetchBooks();
+      fetchMyRequests();
+    }
 
-  const recentBooks: Book[] = [
-    {
-      id: '1',
-      title: 'Chemistry Class 12',
-      subject: 'Chemistry',
-      grade: '12',
-      condition: 'excellent' as const,
-      description: 'NCERT Chemistry textbook with solved examples',
-      location: 'Andheri, Mumbai',
-      donorName: 'Rajesh Patel',
-      donorId: '2',
-      status: 'available' as const,
-      createdAt: '2024-01-20',
-      photo: '/api/placeholder/300/200',
-    },
-    {
-      id: '2',
-      title: 'English Grammar Guide',
-      subject: 'English',
-      grade: '10',
-      condition: 'good' as const,
-      description: 'Comprehensive grammar guide with practice exercises',
-      location: 'Bandra, Mumbai',
-      donorName: 'Priya Singh',
-      donorId: '3',
-      status: 'available' as const,
-      createdAt: '2024-01-19',
-      photo: '/api/placeholder/300/200',
-    },
-    {
-      id: '3',
-      title: 'Mathematics for JEE',
-      subject: 'Mathematics',
-      grade: '12',
-      condition: 'excellent' as const,
-      description: 'Advanced mathematics for competitive exam preparation',
-      location: 'Powai, Mumbai',
-      donorName: 'Amit Kumar',
-      donorId: '4',
-      status: 'available' as const,
-      createdAt: '2024-01-18',
-      photo: '/api/placeholder/300/200',
-    },
-  ];
+    // Set up real-time subscription for new books
+    const booksChannel = supabase
+      .channel('books-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'books',
+          filter: 'status=eq.available'
+        },
+        () => {
+          fetchBooks(); // Refresh books when new book is added
+        }
+      )
+      .subscribe();
 
-  const myRequests = [
-    {
-      id: '1',
-      bookTitle: 'Physics Class 11',
-      donorName: 'Suresh Agarwal',
-      requestDate: '2024-01-18',
-      status: 'pending',
-      estimatedValue: '₹800',
-    },
-    {
-      id: '2',
-      bookTitle: 'Biology Textbook',
-      donorName: 'Kavita Sharma',
-      requestDate: '2024-01-15',
-      status: 'accepted',
-      estimatedValue: '₹600',
-    },
-    {
-      id: '3',
-      bookTitle: 'History Class 10',
-      donorName: 'Ravi Gupta',
-      requestDate: '2024-01-12',
-      status: 'completed',
-      estimatedValue: '₹450',
-    },
-  ];
+    // Set up real-time subscription for book requests
+    const requestsChannel = supabase
+      .channel('requests-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'book_requests'
+        },
+        () => {
+          if (user) {
+            fetchMyRequests(); // Refresh requests on any change
+          }
+        }
+      )
+      .subscribe();
 
-  const handleBookRequest = (book: Book) => {
-    // Handle book request
-    console.log('Requesting book:', book);
+    return () => {
+      supabase.removeChannel(booksChannel);
+      supabase.removeChannel(requestsChannel);
+    };
+  }, [user]);
+
+  const fetchBooks = async () => {
+    try {
+      // Fetch books
+      const { data: booksData, error: booksError } = await supabase
+        .from('books')
+        .select('*')
+        .eq('status', 'available')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (booksError) throw booksError;
+
+      if (!booksData || booksData.length === 0) {
+        setBooks([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get unique user IDs
+      const userIds = [...new Set(booksData.map(book => book.user_id))];
+
+      // Fetch profiles for these users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, location')
+        .in('user_id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Create a map of user_id to profile
+      const profilesMap = new Map(
+        (profilesData || []).map(profile => [profile.user_id, profile])
+      );
+
+      // Combine books with their donor profiles
+      const formattedBooks: Book[] = booksData.map((book: any) => {
+        const profile = profilesMap.get(book.user_id);
+        return {
+          id: book.id,
+          title: book.title,
+          subject: book.subject,
+          grade: book.grade,
+          condition: book.condition,
+          description: book.description,
+          location: profile?.location || book.location,
+          donorName: profile?.display_name || 'Anonymous',
+          donorId: book.user_id,
+          status: book.status,
+          createdAt: book.created_at,
+          photo: book.photo_url
+        };
+      });
+
+      setBooks(formattedBooks);
+    } catch (error) {
+      console.error('Error fetching books:', error);
+      toast.error('Failed to load books');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMyRequests = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('book_requests')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setMyRequests(data || []);
+
+      // Calculate stats
+      const totalRequested = data?.length || 0;
+      const delivered = data?.filter(r => r.status === 'delivered').length || 0;
+      const pending = data?.filter(r => r.status === 'pending').length || 0;
+      const avgBookPrice = 500; // Average book price estimation
+
+      setStats({
+        booksRequested: totalRequested,
+        booksReceived: delivered,
+        moneySaved: delivered * avgBookPrice,
+        activeRequests: pending
+      });
+    } catch (error) {
+      console.error('Error fetching requests:', error);
+      toast.error('Failed to load requests');
+    }
+  };
+
+  const handleSearch = () => {
+    if (!searchQuery.trim()) {
+      fetchBooks();
+      return;
+    }
+
+    const filtered = books.filter(book => 
+      book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      book.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      book.grade.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (book.donorName && book.donorName.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    setBooks(filtered);
+  };
+
+  const handleFilter = () => {
+    let filtered = books;
+
+    if (filterSubject) {
+      filtered = filtered.filter(book => 
+        book.subject.toLowerCase() === filterSubject.toLowerCase()
+      );
+    }
+
+    if (filterGrade) {
+      filtered = filtered.filter(book => 
+        book.grade === filterGrade
+      );
+    }
+
+    setBooks(filtered);
+    setShowFilters(false);
+  };
+
+  const clearFilters = () => {
+    setFilterSubject('');
+    setFilterGrade('');
+    fetchBooks();
+    setShowFilters(false);
+  };
+
+  const handleBookRequest = async (book: Book) => {
+    if (!user) {
+      toast.error('Please login to request books');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('book_requests')
+        .insert([{
+          user_id: user.id,
+          book_id: book.id,
+          title: book.title,
+          author: '', // Default empty if not provided
+          category: book.subject,
+          status: 'pending'
+        }]);
+
+      if (error) throw error;
+
+      toast.success(`Request sent for "${book.title}"!`);
+      fetchMyRequests(); // Refresh requests
+    } catch (error: any) {
+      console.error('Error requesting book:', error);
+      toast.error('Failed to request book. Please try again.');
+    }
   };
 
   const handleViewDetails = (book: Book) => {
-    // Handle view details
-    console.log('Viewing book details:', book);
+    toast.info('View details functionality coming soon');
   };
 
   return (
@@ -159,19 +274,66 @@ export const ReceiverDashboard: React.FC = () => {
                     icon={<Search className="w-4 h-4" />}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="lg">
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    onClick={() => setShowFilters(!showFilters)}
+                  >
                     <Filter className="w-4 h-4 mr-2" />
                     Filters
                   </Button>
-                  <Button size="lg">
+                  <Button size="lg" onClick={handleSearch}>
                     <Search className="w-4 h-4 mr-2" />
                     Search
                   </Button>
                 </div>
               </div>
+
+              {/* Filter Panel */}
+              {showFilters && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Subject</label>
+                      <select
+                        className="w-full px-3 py-2 border border-input bg-background rounded-md"
+                        value={filterSubject}
+                        onChange={(e) => setFilterSubject(e.target.value)}
+                      >
+                        <option value="">All Subjects</option>
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Science">Science</option>
+                        <option value="English">English</option>
+                        <option value="Chemistry">Chemistry</option>
+                        <option value="Physics">Physics</option>
+                        <option value="Biology">Biology</option>
+                        <option value="History">History</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Grade</label>
+                      <select
+                        className="w-full px-3 py-2 border border-input bg-background rounded-md"
+                        value={filterGrade}
+                        onChange={(e) => setFilterGrade(e.target.value)}
+                      >
+                        <option value="">All Grades</option>
+                        {[...Array(12)].map((_, i) => (
+                          <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <Button onClick={handleFilter} className="flex-1">Apply Filters</Button>
+                      <Button onClick={clearFilters} variant="outline">Clear</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -179,16 +341,16 @@ export const ReceiverDashboard: React.FC = () => {
         {/* Quick Actions */}
         <div className="mb-8">
           <div className="flex flex-wrap gap-4">
-            <Button asChild>
-              <Link to="/books">
+            <Button variant="gradient" asChild>
+              <Link to="/books/browse">
                 <BookOpen className="w-4 h-4 mr-2" />
                 Browse All Books
               </Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/my-requests">
+              <Link to="/books/requests">
                 <Heart className="w-4 h-4 mr-2" />
-                My Requests ({myRequests.filter(r => r.status === 'pending').length} pending)
+                My Requests ({myRequests.filter(r => r.status === 'pending' || r.status === 'approved').length} active)
               </Link>
             </Button>
           </div>
@@ -196,22 +358,62 @@ export const ReceiverDashboard: React.FC = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => (
-            <Card key={index} className="card-gradient border-0">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">{stat.title}</p>
-                    <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.change}</p>
-                  </div>
-                  <div className={`w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center`}>
-                    <stat.icon className="w-6 h-6 text-primary-foreground" />
-                  </div>
+          <Card className="card-gradient border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Books Requested</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.booksRequested}</p>
+                  <p className="text-xs text-muted-foreground">Total requests made</p>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+                <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-primary-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-gradient border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Books Received</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.booksReceived}</p>
+                  <p className="text-xs text-muted-foreground">Successfully received</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-primary-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-gradient border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Money Saved</p>
+                  <p className="text-2xl font-bold text-foreground">₹{stats.moneySaved.toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Estimated savings</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
+                  <Star className="w-6 h-6 text-primary-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="card-gradient border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Active Requests</p>
+                  <p className="text-2xl font-bold text-foreground">{stats.activeRequests}</p>
+                  <p className="text-xs text-muted-foreground">Pending approval</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-primary-foreground" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -224,21 +426,27 @@ export const ReceiverDashboard: React.FC = () => {
                   Recently Added Books
                 </CardTitle>
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to="/books">View All</Link>
+                  <Link to="/books/browse">View All</Link>
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-6">
-                  {recentBooks.map((book) => (
-                    <BookCard
-                      key={book.id}
-                      book={book}
-                      onViewDetails={handleViewDetails}
-                      onRequest={handleBookRequest}
-                      compact
-                    />
-                  ))}
-                </div>
+                {loading ? (
+                  <div className="text-center py-8 text-muted-foreground">Loading books...</div>
+                ) : books.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No books available yet</div>
+                ) : (
+                  <div className="grid gap-6">
+                    {books.slice(0, 5).map((book) => (
+                      <BookCard
+                        key={book.id}
+                        book={book}
+                        onViewDetails={handleViewDetails}
+                        onRequest={handleBookRequest}
+                        compact
+                      />
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -253,45 +461,61 @@ export const ReceiverDashboard: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {myRequests.slice(0, 3).map((request) => (
-                    <div key={request.id} className="p-4 bg-accent/30 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-sm text-foreground">{request.bookTitle}</h4>
-                        <Badge
-                          variant={
-                            request.status === 'pending' 
-                              ? 'default' 
-                              : request.status === 'accepted' 
-                                ? 'secondary' 
-                                : 'outline'
-                          }
-                          className="text-xs"
-                        >
-                          {request.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                          {request.status === 'accepted' && <CheckCircle className="w-3 h-3 mr-1" />}
-                          {request.status === 'completed' && <Star className="w-3 h-3 mr-1" />}
-                          {request.status}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-1">
-                        by {request.donorName}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">
-                          {request.requestDate}
-                        </p>
-                        <p className="text-xs font-medium text-success">
-                          Saves {request.estimatedValue}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <Button variant="ghost" size="sm" className="w-full" asChild>
-                    <Link to="/my-requests">View All Requests</Link>
-                  </Button>
-                </div>
+                {myRequests.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No requests yet</div>
+                ) : (
+                  <div className="space-y-4">
+                     {myRequests.slice(0, 3).map((request) => (
+                       <div key={request.id} className="p-4 bg-accent/30 rounded-lg border border-border">
+                         <div className="flex items-center justify-between mb-2">
+                           <h4 className="font-medium text-sm text-foreground line-clamp-1">{request.title}</h4>
+                           <Badge
+                             variant="default"
+                             className={`text-xs ${
+                               request.status === 'pending' 
+                                 ? 'bg-yellow-100 text-yellow-800 border-yellow-200' 
+                                 : request.status === 'approved' 
+                                   ? 'bg-blue-100 text-blue-800 border-blue-200' 
+                                   : request.status === 'delivered'
+                                     ? 'bg-green-100 text-green-800 border-green-200'
+                                     : 'bg-red-100 text-red-800 border-red-200'
+                             }`}
+                           >
+                             {request.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                             {request.status === 'approved' && <CheckCircle className="w-3 h-3 mr-1" />}
+                             {request.status === 'delivered' && <Star className="w-3 h-3 mr-1" />}
+                             {request.status}
+                           </Badge>
+                         </div>
+                         <p className="text-sm text-muted-foreground mb-1">
+                           {request.author && `by ${request.author}`}
+                         </p>
+                         <div className="flex items-center justify-between">
+                           <p className="text-xs text-muted-foreground">
+                             {new Date(request.created_at).toLocaleDateString()}
+                           </p>
+                           <Badge variant="outline" className="text-xs capitalize">
+                             {request.category}
+                           </Badge>
+                         </div>
+                         {request.status === 'approved' && (
+                           <div className="mt-2 text-xs text-blue-600 font-medium">
+                             ✓ Approved - Arrange pickup/delivery
+                           </div>
+                         )}
+                         {request.status === 'delivered' && (
+                           <div className="mt-2 text-xs text-green-600 font-medium">
+                             ✓ Book received - Happy learning!
+                           </div>
+                         )}
+                       </div>
+                     ))}
+                     
+                     <Button variant="ghost" size="sm" className="w-full" asChild>
+                       <Link to="/books/requests">View All Requests</Link>
+                     </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -309,19 +533,19 @@ export const ReceiverDashboard: React.FC = () => {
             <CardContent>
               <div className="grid md:grid-cols-3 gap-6 text-center">
                 <div>
-                  <div className="text-3xl font-bold text-primary mb-2">5</div>
+                  <div className="text-3xl font-bold text-primary mb-2">{stats.booksReceived}</div>
                   <p className="text-sm text-muted-foreground">Books Received</p>
-                  <p className="text-xs text-muted-foreground mt-1">This semester</p>
+                  <p className="text-xs text-muted-foreground mt-1">Total books received</p>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-success mb-2">₹4,500</div>
+                  <div className="text-3xl font-bold text-success mb-2">₹{stats.moneySaved.toLocaleString()}</div>
                   <p className="text-sm text-muted-foreground">Total Savings</p>
                   <p className="text-xs text-muted-foreground mt-1">Money not spent on books</p>
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-warning mb-2">12</div>
-                  <p className="text-sm text-muted-foreground">Donors Helped You</p>
-                  <p className="text-xs text-muted-foreground mt-1">Generous community members</p>
+                  <div className="text-3xl font-bold text-warning mb-2">{books.length}</div>
+                  <p className="text-sm text-muted-foreground">Available Books</p>
+                  <p className="text-xs text-muted-foreground mt-1">Books you can request</p>
                 </div>
               </div>
             </CardContent>

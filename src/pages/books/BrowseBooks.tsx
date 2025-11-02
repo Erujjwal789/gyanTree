@@ -6,9 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Filter, MapPin, User, Calendar } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Search, Filter, MapPin, User, Calendar, CheckCircle } from 'lucide-react';
 
 interface Book {
   id: string;
@@ -40,10 +40,11 @@ const BrowseBooks: React.FC = () => {
   const [books, setBooks] = useState<BookWithDonor[]>([]);
   const [filteredBooks, setFilteredBooks] = useState<BookWithDonor[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRequests, setUserRequests] = useState<string[]>([]); // Track requested book IDs
   const [searchTerm, setSearchTerm] = useState('');
-  const [subjectFilter, setSubjectFilter] = useState('');
-  const [gradeFilter, setGradeFilter] = useState('');
-  const [conditionFilter, setConditionFilter] = useState('');
+  const [subjectFilter, setSubjectFilter] = useState('all');
+  const [gradeFilter, setGradeFilter] = useState('all');
+  const [conditionFilter, setConditionFilter] = useState('all');
   
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -53,13 +54,28 @@ const BrowseBooks: React.FC = () => {
   const grades = ['Pre-K', 'K', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th', 'College'];
   const conditions = ['New', 'Like New', 'Good', 'Fair', 'Poor'];
 
-  useEffect(() => {
-    fetchBooks();
-  }, []);
+  // Fetch user's requests to prevent duplicates
+  const fetchUserRequests = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('book_requests')
+        .select('book_id')
+        .eq('user_id', user.id)
+        .not('book_id', 'is', null);
 
-  useEffect(() => {
-    filterBooks();
-  }, [books, searchTerm, subjectFilter, gradeFilter, conditionFilter]);
+      if (error) throw error;
+      
+      const requestedIds = (data || [])
+        .map(r => r.book_id)
+        .filter(id => id !== null) as string[];
+      
+      setUserRequests(requestedIds);
+    } catch (error) {
+      console.error('Error fetching user requests:', error);
+    }
+  };
 
   const fetchBooks = async () => {
     try {
@@ -105,6 +121,53 @@ const BrowseBooks: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    fetchBooks();
+    fetchUserRequests();
+
+    // Set up real-time subscription for new books
+    const booksChannel = supabase
+      .channel('books-browse')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'books'
+        },
+        () => {
+          fetchBooks(); // Refresh when books change
+        }
+      )
+      .subscribe();
+
+    // Subscribe to book requests changes
+    const requestsChannel = supabase
+      .channel('requests-browse')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'book_requests',
+          filter: user ? `user_id=eq.${user.id}` : undefined
+        },
+        () => {
+          fetchUserRequests(); // Refresh user's requests
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(booksChannel);
+      supabase.removeChannel(requestsChannel);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    filterBooks();
+  }, [books, searchTerm, subjectFilter, gradeFilter, conditionFilter]);
+
   const filterBooks = () => {
     let filtered = books;
 
@@ -116,35 +179,78 @@ const BrowseBooks: React.FC = () => {
       );
     }
 
-    if (subjectFilter) {
+    if (subjectFilter && subjectFilter !== 'all') {
       filtered = filtered.filter(book => book.subject === subjectFilter);
     }
 
-    if (gradeFilter) {
+    if (gradeFilter && gradeFilter !== 'all') {
       filtered = filtered.filter(book => book.grade === gradeFilter);
     }
 
-    if (conditionFilter) {
+    if (conditionFilter && conditionFilter !== 'all') {
       filtered = filtered.filter(book => book.condition === conditionFilter);
     }
 
     setFilteredBooks(filtered);
   };
 
-  const handleRequestBook = (bookId: string, bookTitle: string) => {
-    navigate('/book-requests', { 
-      state: { 
-        prefilledTitle: bookTitle,
-        bookId 
-      } 
-    });
+  const handleRequestBook = async (book: BookWithDonor) => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please login to request a book.",
+        variant: "destructive",
+      });
+      navigate('/login');
+      return;
+    }
+
+    // Check if already requested
+    if (userRequests.includes(book.id)) {
+      toast({
+        title: "Already Requested",
+        description: "You have already requested this book.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('book_requests')
+        .insert([{
+          user_id: user.id,
+          book_id: book.id,
+          title: book.title,
+          author: book.author || 'Unknown',
+          category: book.subject.toLowerCase(),
+          status: 'pending'
+        }]);
+
+      if (error) throw error;
+
+      // Update local state
+      setUserRequests(prev => [...prev, book.id]);
+
+      toast({
+        title: "Request Sent! 📚",
+        description: `Your request for "${book.title}" has been sent to the donor.`,
+      });
+    } catch (error) {
+      console.error('Error requesting book:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send request. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const clearFilters = () => {
     setSearchTerm('');
-    setSubjectFilter('');
-    setGradeFilter('');
-    setConditionFilter('');
+    setSubjectFilter('all');
+    setGradeFilter('all');
+    setConditionFilter('all');
   };
 
   if (loading) {
@@ -190,7 +296,7 @@ const BrowseBooks: React.FC = () => {
                 <SelectValue placeholder="All Subjects" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Subjects</SelectItem>
+                <SelectItem value="all">All Subjects</SelectItem>
                 {subjects.map(subject => (
                   <SelectItem key={subject} value={subject}>{subject}</SelectItem>
                 ))}
@@ -202,7 +308,7 @@ const BrowseBooks: React.FC = () => {
                 <SelectValue placeholder="All Grades" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Grades</SelectItem>
+                <SelectItem value="all">All Grades</SelectItem>
                 {grades.map(grade => (
                   <SelectItem key={grade} value={grade}>{grade}</SelectItem>
                 ))}
@@ -214,7 +320,7 @@ const BrowseBooks: React.FC = () => {
                 <SelectValue placeholder="All Conditions" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Conditions</SelectItem>
+                <SelectItem value="all">All Conditions</SelectItem>
                 {conditions.map(condition => (
                   <SelectItem key={condition} value={condition}>{condition}</SelectItem>
                 ))}
@@ -242,7 +348,7 @@ const BrowseBooks: React.FC = () => {
             <div className="text-6xl mb-4">📚</div>
             <h3 className="text-xl font-semibold mb-2">No books found</h3>
             <p className="text-muted-foreground text-center">
-              {searchTerm || subjectFilter || gradeFilter || conditionFilter
+              {searchTerm || (subjectFilter !== 'all') || (gradeFilter !== 'all') || (conditionFilter !== 'all')
                 ? 'Try adjusting your search criteria or filters'
                 : 'No books have been donated yet. Check back later!'}
             </p>
@@ -305,13 +411,24 @@ const BrowseBooks: React.FC = () => {
               </CardContent>
               
               <div className="p-6 pt-0">
-                <Button 
-                  onClick={() => handleRequestBook(book.id, book.title)}
-                  className="w-full"
-                  disabled={!user}
-                >
-                  {!user ? 'Login to Request' : 'Request Book'}
-                </Button>
+                {userRequests.includes(book.id) ? (
+                  <Button 
+                    className="w-full"
+                    variant="secondary"
+                    disabled
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Requested
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => handleRequestBook(book)}
+                    className="w-full"
+                    disabled={!user}
+                  >
+                    {!user ? 'Login to Request' : 'Request Book'}
+                  </Button>
+                )}
               </div>
             </Card>
           ))}

@@ -9,15 +9,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary-hover shadow-soft hover:shadow-medium transition-all duration-300",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover shadow-[0_0_20px_rgba(0,210,106,0.3)] hover:shadow-[0_0_30px_rgba(0,210,106,0.5)] transition-all duration-300",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-soft",
+        outline: "border border-primary/30 bg-transparent text-foreground hover:bg-primary/10 hover:border-primary/50 hover:shadow-[0_0_15px_rgba(0,210,106,0.2)]",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-[0_0_20px_rgba(0,178,255,0.3)]",
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        gradient: "btn-gradient text-primary-foreground font-medium",
-        success: "bg-success text-success-foreground hover:bg-success/90 shadow-soft",
-        hero: "bg-gradient-primary text-primary-foreground font-semibold shadow-medium hover:shadow-strong hover:scale-105 transition-all duration-300",
+        link: "text-primary underline-offset-4 hover:underline hover:text-primary-glow",
+        gradient: "btn-gradient text-background font-semibold",
+        success: "bg-success text-success-foreground hover:bg-success/90 shadow-[0_0_20px_rgba(0,210,106,0.3)]",
+        hero: "bg-gradient-primary text-background font-bold shadow-[0_0_40px_rgba(0,210,106,0.4)] hover:shadow-[0_0_60px_rgba(0,210,106,0.6)] hover:scale-105 transition-all duration-300",
+        glass: "glass-card text-foreground hover:border-primary/50",
       },
       size: {
         default: "h-10 px-4 py-2",

@@ -17,6 +17,7 @@ export type Database = {
       book_requests: {
         Row: {
           author: string
+          book_id: string | null
           category: string
           created_at: string
           id: string
@@ -28,6 +29,7 @@ export type Database = {
         }
         Insert: {
           author: string
+          book_id?: string | null
           category: string
           created_at?: string
           id?: string
@@ -39,6 +41,7 @@ export type Database = {
         }
         Update: {
           author?: string
+          book_id?: string | null
           category?: string
           created_at?: string
           id?: string
@@ -48,7 +51,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "book_requests_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       books: {
         Row: {
